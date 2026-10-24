@@ -286,4 +286,29 @@
         <item quantity="other">%d дней до конца пробного периода</item>
     </plurals>
 
+	    <!-- Перевод новый -->
+    <string name="download_playback_speed_half">Скорость 0.5x</string>
+    <string name="download_playback_speed_one_half">Скорость 1.5x</string>
+    <string name="download_playback_speed_double">Скорость 2x</string>
+    <string name="download_playback_speed_tripple">Скорость 3x</string>
+    <string name="playback_speed_normal">Обычная</string>
+    <string name="playback_speed_one_half">1.5x</string>
+    <string name="playback_speed_double">2x</string>
+    <string name="playback_speed_triple">3x</string>
+    
+    <string name="menu_batch_mode">Режим выбора</string>
+    <string name="menu_remove_played">Удалять проигранное</string>
+    <string name="menu_screen_on_off">Не гасить экран</string>
+    <string name="menu_toggle_timer">Таймер сна</string>
+    <string name="menu_set_timer">Настроить таймер</string>
+    <string name="download_stop_time_remaining">Остановка через %s</string>
+
+    <string name="download_repeat_off">Повтор выкл.</string>
+    <string name="download_repeat_all">Повтор всех</string>
+    <string name="download_repeat_single">Повтор одного</string>
+    <string name="download_playerstate_playing_shuffle">Перемешано</string>
+    <string name="download_playing_out_of">Воспроизведение: %1$d/%2$d</string>
+    <string name="download_shuffle_loading">Загрузка случайных треков...</string>
+    <string name="download_empty">Очередь пуста</string>
+	
 </resources>
