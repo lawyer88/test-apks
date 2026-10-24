@@ -1000,7 +1000,7 @@ public class NowPlayingFragment extends SubsonicFragment implements OnGestureLis
 		if(position != -1) {
 			// RecyclerView.scrollToPosition just puts it on the screen (ie: bottom if scrolled below it)
 			LinearLayoutManager layoutManager = (LinearLayoutManager) playlistView.getLayoutManager();
-			layoutManager.scrollToPositionWithOffset(position, 0);
+			layoutManager.scrollToPositionWithOffset(position, -300);
 		}
 	}
 
