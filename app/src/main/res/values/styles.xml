@@ -28,7 +28,6 @@
 	</style>
 	<style name="TextAppearance.DSub2000.BarSubtitle" parent="TextAppearance.Material3.BodyLarge">
 	<item name="android:textColor">?android:attr/textColorSecondary</item>
-	<item name="android:textSize">12sp</item> <!-- Уменьшили шрифт шапки -->
     </style>
 	<style name="TextAppearance.DSub2000.BarSubtitle.Inverse">
 		<item name="android:textColor">?android:attr/textColorSecondaryInverse</item>
