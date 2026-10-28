@@ -369,22 +369,17 @@ public class NowPlayingFragment extends SubsonicFragment implements OnGestureLis
 
 
 		pauseButton.setOnClickListener(new View.OnClickListener() {
-	@Override
-	public void onClick(View view) {
-		// Принудительно открываем список при нажатии Play/Pause
-		if (playlistFlipper != null) {
-			playlistFlipper.setDisplayedChild(1);
-		}
-		
-		new SilentBackgroundTask<Void>(context) {
 			@Override
-			protected Void doInBackground() throws Throwable {
-				getDownloadService().pause();
-				return null;
+			public void onClick(View view) {
+				new SilentBackgroundTask<Void>(context) {
+					@Override
+					protected Void doInBackground() throws Throwable {
+						getDownloadService().pause();
+						return null;
+					}
+				}.execute();
 			}
-		}.execute();
-	}
-});
+		});
 
 		stopButton.setOnClickListener(new View.OnClickListener() {
 			@Override
@@ -402,10 +397,6 @@ public class NowPlayingFragment extends SubsonicFragment implements OnGestureLis
 		startButton.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View view) {
-				// Принудительно открываем список при старте
-            if (playlistFlipper != null) {
-	        playlistFlipper.setDisplayedChild(1);
-           }
 				warnIfStorageUnavailable();
 				new SilentBackgroundTask<Void>(context) {
 					@Override
