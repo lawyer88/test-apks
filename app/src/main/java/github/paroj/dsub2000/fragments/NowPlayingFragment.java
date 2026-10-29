@@ -146,6 +146,7 @@ public class NowPlayingFragment extends SubsonicFragment implements OnGestureLis
 	private boolean seekInProgress = false;
 	private boolean startFlipped = false;
 	private boolean scrollWhenLoaded = false;
+	private boolean pendingScrollToCurrent = false;
 	private int lastY = 0;
 	private int currentPlayingSize = 0;
 	private MenuItem timerMenu;
@@ -262,6 +263,20 @@ public class NowPlayingFragment extends SubsonicFragment implements OnGestureLis
 		FastScroller fastScroller = (FastScroller) rootView.findViewById(R.id.download_fast_scroller);
 		fastScroller.attachRecyclerView(playlistView);
 		setupLayoutManager(playlistView, false);
+		playlistView.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
+			@Override
+			public void onLayoutChange(View v, int left, int top, int right, int bottom, int oldLeft, int oldTop, int oldRight, int oldBottom) {
+				if(pendingScrollToCurrent && (bottom - top) > 0) {
+					pendingScrollToCurrent = false;
+					playlistView.post(new Runnable() {
+						@Override
+						public void run() {
+							scrollToCurrent();
+						}
+					});
+				}
+			}
+		});
 		ItemTouchHelper touchHelper = new ItemTouchHelper(new DownloadFileItemHelperCallback(this, true));
 		touchHelper.attachToRecyclerView(playlistView);
 
@@ -991,9 +1006,16 @@ public class NowPlayingFragment extends SubsonicFragment implements OnGestureLis
 	}
 
 	// Scroll to current playing/downloading.
+	// Первые треки остаются сверху списка. Когда играющий трек доходит до середины,
+	// список двигается вслед за ним и активный трек остаётся в середине.
 	private void scrollToCurrent() {
-		if (getDownloadService() == null || songListAdapter == null) {
+		if (getDownloadService() == null || songListAdapter == null || playlistView == null) {
 			scrollWhenLoaded = true;
+			return;
+		}
+		if (playlistView.getHeight() <= 0) {
+			// Список ещё не размечен (скрыт или не успел отрисоваться) - повторим после layout
+			pendingScrollToCurrent = true;
 			return;
 		}
 
@@ -1003,13 +1025,45 @@ public class NowPlayingFragment extends SubsonicFragment implements OnGestureLis
 			DownloadFile currentDownloading = getDownloadService().getCurrentDownloading();
 			position = songListAdapter.getItemPosition(currentDownloading);
 		}
-
-		// If found, scroll to it
-		if(position != -1) {
-			// RecyclerView.scrollToPosition just puts it on the screen (ie: bottom if scrolled below it)
-			LinearLayoutManager layoutManager = (LinearLayoutManager) playlistView.getLayoutManager();
-			layoutManager.scrollToPositionWithOffset(position, -100);
+		if(position == -1) {
+			return;
 		}
+
+		LinearLayoutManager layoutManager = (LinearLayoutManager) playlistView.getLayoutManager();
+		View itemView = layoutManager.findViewByPosition(position);
+
+		if(itemView != null && itemView.getHeight() > 0) {
+			// Трек уже на экране: плавно сдвигаем так, чтобы он оказался по центру.
+			// Если трек выше середины (начало списка) - RecyclerView сам упрётся в верх списка.
+			int itemCenter = itemView.getTop() + itemView.getHeight() / 2;
+			int listCenter = (playlistView.getHeight() - playlistView.getPaddingTop() - playlistView.getPaddingBottom()) / 2 + playlistView.getPaddingTop();
+			int delta = itemCenter - listCenter;
+			if(delta != 0) {
+				playlistView.smoothScrollBy(0, delta);
+			}
+		} else {
+			// Трека нет на экране (первый показ списка или большой скачок) - переходим сразу
+			int itemHeight = estimateItemHeight();
+			int centerOffset = (playlistView.getHeight() - itemHeight) / 2;
+			if(position * itemHeight <= centerOffset) {
+				// Трек в верхней половине - показываем список с самого начала
+				layoutManager.scrollToPositionWithOffset(0, 0);
+			} else {
+				layoutManager.scrollToPositionWithOffset(position, centerOffset);
+			}
+		}
+	}
+
+	private int estimateItemHeight() {
+		if(playlistView != null) {
+			for(int i = 0; i < playlistView.getChildCount(); i++) {
+				View child = playlistView.getChildAt(i);
+				if(child != null && child.getHeight() > 0) {
+					return child.getHeight();
+				}
+			}
+		}
+		return (int) (64 * context.getResources().getDisplayMetrics().density);
 	}
 
 	private void update() {
