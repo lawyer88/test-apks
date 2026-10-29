@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<string-array name="defaultDrawerItemsDescriptions">
+		<item>Главная</item>
+		<item>Исполнитель</item>
+		<item>Список воспроизведения</item>
+		<item>Подкаст</item>
+		<item>Закладка</item>
+		<item>Интернет-радио</item>
+		<item>Общая ссылка</item>
+		<item>Чат</item>
+	</string-array>
+</resources>
