@@ -147,6 +147,7 @@ public class NowPlayingFragment extends SubsonicFragment implements OnGestureLis
 	private boolean startFlipped = false;
 	private boolean scrollWhenLoaded = false;
 	private boolean pendingScrollToCurrent = false;
+	private String positionText = null;
 	private int lastY = 0;
 	private int currentPlayingSize = 0;
 	private MenuItem timerMenu;
@@ -1429,6 +1430,7 @@ public class NowPlayingFragment extends SubsonicFragment implements OnGestureLis
 			getImageLoader().loadImage(albumArtImageView, song, true, true);
 
 			DownloadService downloadService = getDownloadService();
+			positionText = null;
 			if(downloadService.isCurrentPlayingSingle()) {
 				setSubtitle(null);
 			} else if(downloadService.isShufflePlayEnabled()) {
@@ -1436,11 +1438,16 @@ public class NowPlayingFragment extends SubsonicFragment implements OnGestureLis
 			} else if(downloadService.isArtistRadio()) {
 				setSubtitle(context.getResources().getString(R.string.download_playerstate_playing_artist_radio));
 			} else {
-				setSubtitle(context.getResources().getString(R.string.download_playing_out_of, currentPlayingIndex + 1, currentPlayingSize));
+				// Номер трека показываем в одной строке с заголовком (например "Плеер · 5/100"),
+				// а не вторым рядом в панели, где он обрезался
+				setSubtitle(null);
+				positionText = (currentPlayingIndex + 1) + "/" + currentPlayingSize;
 			}
+			updateTitle();
 		} else {
 			songTitleTextView.setText(null);
 			getImageLoader().loadImage(albumArtImageView, (Entry) null, true, false);
+			positionText = null;
 			setSubtitle(null);
 		}
 	}
@@ -1668,6 +1675,9 @@ public class NowPlayingFragment extends SubsonicFragment implements OnGestureLis
 
 		if(playbackSpeedText != null) {
 			title += " (" + playbackSpeedText + ")";
+		}
+		if(positionText != null) {
+			title += "  ·  " + positionText;
 		}
 		setTitle(title);
 	}
