@@ -343,19 +343,29 @@ public class SubsonicFragmentActivity extends SubsonicActivity implements Downlo
 		startButton.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View v) {
-				new SilentBackgroundTask<Void>(SubsonicFragmentActivity.this) {
+				new SilentBackgroundTask<Boolean>(SubsonicFragmentActivity.this) {
 					@Override
-					protected Void doInBackground() throws Throwable {
+					protected Boolean doInBackground() throws Throwable {
 						PlayerState state = getDownloadService().getPlayerState();
 						if(state == PlayerState.STARTED) {
 							getDownloadService().pause();
+							return false;
 						} else if(state == PlayerState.IDLE) {
 							getDownloadService().play();
 						} else {
 							getDownloadService().start();
 						}
 
-						return null;
+						// Музыка включена - покажем экран проигрывания
+						return true;
+					}
+
+					@Override
+					protected void done(Boolean started) {
+						if(started != null && started
+								&& slideUpPanel.getPanelState() == SlidingUpPanelLayout.PanelState.COLLAPSED) {
+							openNowPlaying();
+						}
 					}
 				}.execute();
 			}
