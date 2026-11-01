@@ -23,6 +23,7 @@ import static android.content.Context.RECEIVER_EXPORTED;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -255,7 +256,23 @@ public class DownloadServiceLifecycleSupport {
 	}
 
 	public void onDestroy() {
-		serializeDownloadQueue();
+		// eventLooper.quit() отбрасывает отложенные задачи, поэтому состояние (очередь и позицию)
+		// сохраняем сразу, а не через очередь событий
+		if(setup.get()) {
+			boolean locked = false;
+			try {
+				locked = lock.tryLock(1, TimeUnit.SECONDS);
+				if(locked) {
+					serializeDownloadQueueNow(new ArrayList<DownloadFile>(downloadService.getSongs()), false);
+				}
+			} catch(Exception e) {
+				Log.w(TAG, "Failed to save state on destroy", e);
+			} finally {
+				if(locked) {
+					lock.unlock();
+				}
+			}
+		}
 		eventLooper.quit();
 		downloadService.unregisterReceiver(ejectEventReceiver);
 		downloadService.unregisterReceiver(intentReceiver);
@@ -307,6 +324,7 @@ public class DownloadServiceLifecycleSupport {
 
 		Log.i(TAG, "Serialized currentPlayingIndex: " + state.currentPlayingIndex + ", currentPlayingPosition: " + state.currentPlayingPosition);
 		FileUtil.serialize(downloadService, state, FILENAME_DOWNLOADS_SER);
+		downloadService.saveResumePoint(true);
 
 		// If we are on Subsonic 5.2+, save play queue
 		if(serializeRemote && ServerInfo.canSavePlayQueue(downloadService) && !Util.isOffline(downloadService) && state.songs.size() > 0 && !(state.songs.get(0) instanceof InternetRadioStation)) {

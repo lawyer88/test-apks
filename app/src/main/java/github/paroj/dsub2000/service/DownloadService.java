@@ -86,6 +86,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
+import android.os.SystemClock;
 import androidx.mediarouter.media.MediaRouteSelector;
 import androidx.mediarouter.media.MediaRouter;
 import android.util.Log;
@@ -170,6 +171,15 @@ public class DownloadService extends MediaLibraryService {
 	private WifiManager.WifiLock wifiLock;
 	private boolean keepScreenOn;
 	private int cachedPosition = 0; // resume position while the player is not live (stopped, preparing, failed)
+	private DownloadFile cachedPositionFile = null; // the song cachedPosition belongs to
+
+	// Точка возобновления: id песни и позиция сохраняются отдельно от очереди и часто,
+	// чтобы после выключения магнитолы воспроизведение продолжилось с того же места
+	private static final String PREF_RESUME_SONG_ID = "resumeSongId";
+	private static final String PREF_RESUME_INDEX = "resumeIndex";
+	private static final String PREF_RESUME_POSITION = "resumePosition";
+	private static final long RESUME_SAVE_INTERVAL = 5000L;
+	private long lastResumeSave = 0;
 	private boolean downloadOngoing = false;
 	private float volume = 1.0f;
 	private long delayUpdateProgress = DEFAULT_DELAY_UPDATE_PROGRESS;
@@ -644,6 +654,33 @@ public class DownloadService extends MediaLibraryService {
 			SharedPreferences.Editor editor = prefs.edit();
 			editor.putInt(Constants.PREFERENCES_KEY_SHUFFLE_MODE, startShufflePlay);
 			editor.commit();
+		}
+		// Берём точку возобновления, если она есть: она свежее и надёжнее, чем сохранённая очередь
+		String resumeId = prefs.getString(PREF_RESUME_SONG_ID, null);
+		if (resumeId != null && songs != null && !songs.isEmpty()) {
+			int hint = prefs.getInt(PREF_RESUME_INDEX, -1);
+			int found = -1;
+			if (hint >= 0 && hint < songs.size() && resumeId.equals(songs.get(hint).getId())) {
+				found = hint;
+			} else {
+				for (int i = 0; i < songs.size(); i++) {
+					if (resumeId.equals(songs.get(i).getId())) {
+						found = i;
+						break;
+					}
+				}
+			}
+			if (found != -1) {
+				int resumePosition = Math.max(0, prefs.getInt(PREF_RESUME_POSITION, 0));
+				Integer duration = songs.get(found).getDuration();
+				if (duration != null && duration > 0 && resumePosition >= (duration - 3) * 1000) {
+					// Песня почти закончилась - начнём её заново
+					resumePosition = 0;
+				}
+				Log.i(TAG, "Resuming from saved point: index " + found + ", position " + resumePosition);
+				currentPlayingIndex = found;
+				currentPlayingPosition = resumePosition;
+			}
 		}
 		if (currentPlayingIndex != -1) {
 			while(mediaPlayer == null) {
@@ -1230,7 +1267,7 @@ public class DownloadService extends MediaLibraryService {
 
 				mediaPlayer.seekTo(position);
 			}
-			cachedPosition = position;
+			setCachedPosition(position);
 
 			onSongProgress();
 			if(playerState == PAUSED) {
@@ -1388,7 +1425,7 @@ public class DownloadService extends MediaLibraryService {
 		}
 		try {
 			if (remoteState == LOCAL) {
-				cachedPosition = mediaPlayer.getCurrentPosition();
+				setCachedPosition(mediaPlayer.getCurrentPosition());
 				mediaPlayer.stop();
 				setPlayerState(STOPPED);
 				return;
@@ -1458,9 +1495,42 @@ public class DownloadService extends MediaLibraryService {
 		mediaPlayer.clearNext();
 	}
 
+	private void setCachedPosition(int position) {
+		cachedPosition = position;
+		cachedPositionFile = currentPlaying;
+	}
+
+	/** Сохраняет текущую песню и позицию в настройках (быстро, без записи всей очереди). */
+	void saveResumePoint(boolean force) {
+		long now = SystemClock.elapsedRealtime();
+		if (!force && now - lastResumeSave < RESUME_SAVE_INTERVAL) {
+			return;
+		}
+		DownloadFile song = currentPlaying;
+		int index = currentPlayingIndex;
+		if (song == null || song.getSong() == null || song.getSong().getId() == null || index < 0 || playerState == COMPLETED) {
+			return;
+		}
+		lastResumeSave = now;
+		try {
+			Util.getPreferences(this).edit()
+					.putString(PREF_RESUME_SONG_ID, song.getSong().getId())
+					.putInt(PREF_RESUME_INDEX, index)
+					.putInt(PREF_RESUME_POSITION, getPlayerPosition())
+					.apply();
+		} catch (Exception e) {
+			Log.w(TAG, "Failed to save resume point", e);
+		}
+	}
+
 	public int getPlayerPosition() {
 		try {
 			if (playerState == IDLE || playerState == DOWNLOADING || playerState == PREPARING) {
+				// Пока плеер не готов, помним позицию, с которой он будет запущен (а не 0),
+				// иначе сохранение очереди в этот момент затрёт настоящую позицию
+				if (remoteState == LOCAL && currentPlaying != null && cachedPositionFile == currentPlaying) {
+					return Math.max(0, cachedPosition);
+				}
 				return 0;
 			}
 			if (remoteState != LOCAL) {
@@ -1631,6 +1701,7 @@ public class DownloadService extends MediaLibraryService {
 			while(isRunning) {
 				try {
 					onSongProgress();
+					saveResumePoint(false);
 					Thread.sleep(delayUpdateProgress);
 				}
 				catch(Exception e) {
@@ -1653,6 +1724,7 @@ public class DownloadService extends MediaLibraryService {
 			while(isRunning) {
 				try {
 					onSongProgress(getPlayerPosition() < 2000);
+					saveResumePoint(false);
 					Thread.sleep(delayUpdateProgress);
 				}
 				catch(Exception e) {
@@ -1960,7 +2032,7 @@ public class DownloadService extends MediaLibraryService {
 
 			if (!fromSeek) setPlayerState(PREPARING);
 
-			cachedPosition = position;
+			setCachedPosition(position);
 			mediaPlayer.prepare(downloadFile, dataSource, position, playWhenReady || autoPlayStart,
 					replayGain(downloadFile), getPlaybackSpeed());
 			autoPlayStart = false;
